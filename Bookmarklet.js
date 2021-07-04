@@ -29,7 +29,8 @@ javascript:(function(){
         '.rio-rankings-table a.rio-realm-link[title="Mythic+ Score"]',
         '.rio-rankings-table a.rio-realm-link b',
         '.rio-badge.rio-badge-color--light[style]',
-        'th span span[style]'
+        'th span span[style]',
+        '.rt-table .rio-realm-link[style^="color"]'
     ];
 
     let selectorsScoreKey = [
