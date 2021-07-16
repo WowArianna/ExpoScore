@@ -193,34 +193,117 @@ EXPOS.GetScoreColor = function(score)
     return 0.62, 0.62, 0.62
 end
 
+EXPOS.GetRioScore = function(fullName)
+    
+    if not RaiderIO then return 0,0,0 end;
+    
+    local mplusCurrent = 0;
+    local mplusPrevious = 0;
+    local mplusMainCurrent = 0;
+    local mplusMainPrevious = 0;
+    local name, realm
+    local RIO_FACTION_TO_ID = {Alliance = 1, Horde = 2, Neutral = 3}
+    local pFaction = RIO_FACTION_TO_ID[UnitFactionGroup("player")]
+    
+    if fullName:find("-", nil, true) then
+        name, realm = ("-"):split(fullName)
+    else
+        name = fullName -- assume this is the name
+    end
+    
+    if not realm or realm == "" then
+        realm = GetNormalizedRealmName()
+    end
+    local playerProfile = RaiderIO.GetProfile(name, realm, pFaction);
+    if (playerProfile ~= nil) then
+        if (playerProfile.mythicKeystoneProfile ~= nil) then
+            
+            if(playerProfile.mythicKeystoneProfile["mplusCurrent"] ~= nil and playerProfile.mythicKeystoneProfile["mplusCurrent"].score ~= 0) then
+                mplusCurrent = playerProfile.mythicKeystoneProfile["mplusCurrent"].score
+            end
+            if(playerProfile.mythicKeystoneProfile["mplusPrevious"] ~= nil and playerProfile.mythicKeystoneProfile["mplusPrevious"].score ~= 0) then
+                mplusPrevious = playerProfile.mythicKeystoneProfile["mplusPrevious"].score
+            end
+            
+            if(playerProfile.mythicKeystoneProfile["mplusMainCurrent"] ~= nil and playerProfile.mythicKeystoneProfile["mplusMainCurrent"].score ~= 0) then
+                mplusMainCurrent = playerProfile.mythicKeystoneProfile["mplusMainCurrent"].score
+            end
+            
+            if(playerProfile.mythicKeystoneProfile["mplusMainPrevious"] ~= nil and playerProfile.mythicKeystoneProfile["mplusMainPrevious"].score ~= 0) then
+                mplusMainPrevious = playerProfile.mythicKeystoneProfile["mplusMainPrevious"].score
+            end
+            
+        end
+    end
+    
+    return mplusCurrent, mplusPrevious , mplusMainCurrent, mplusMainPrevious;
+end
+
+EXPOS.getScore = function(fullName, mScore)
+    
+    local mplusCurrent = 0;
+    local mplusPrevious = 0;
+    local mplusMainCurrent = 0;
+    local mplusMainPrevious = 0;
+    
+    if RaiderIO then
+        mplusCurrent, mplusPrevious, mplusMainCurrent, mplusMainPrevious = EXPOS.GetRioScore(fullName)
+        
+        mplusCurrent = EXPOS.ExpoCorrect(mplusCurrent)
+        mplusPrevious = EXPOS.S1correct(mplusPrevious)
+        
+        mplusMainCurrent = EXPOS.S1correct(mplusMainCurrent)
+        mplusMainPrevious = EXPOS.S1correct(mplusMainPrevious)
+    end
+    
+    
+    if mScore and mScore > 0 then
+        if mplusCurrent == 0 then
+            mplusPrevious = EXPOS.S1correct(mScore)
+        end
+        
+        mplusCurrent = EXPOS.ExpoCorrect(mScore)
+    end
+    
+    return mplusCurrent, mplusPrevious, mplusMainCurrent, mplusMainPrevious
+end
 
 -- tooltip
 aura_env.OnTooltipSetUnit = function(self)
-    local _, unit = self:GetUnit()
+    local _,unit = self:GetUnit()
+    
     if not unit then return end
     
     if (UnitIsPlayer(unit)) then
+        local fullName, realm = UnitName(unit)
+        
+        if realm ~= nil then
+            fullName = fullName .. '-'.. realm
+        end
+        
         local data = C_PlayerInfo.GetPlayerMythicPlusRatingSummary(unit)
         local seasonScore = data and data.currentSeasonScore
         
-        if seasonScore and seasonScore > 0 then
-            local s1Score = EXPOS.S1correct(seasonScore)
-            local epxoScore = EXPOS.ExpoCorrect(seasonScore)
+        local mplusCurrent, mplusPrevious, mplusMainCurrent, mplusMainPrevious = EXPOS.getScore(fullName, seasonScore)
+        
+        self:AddLine(" ", 1, 1, 1) 
+        self:AddDoubleLine("S1 | ExpoScore", "±".. mplusPrevious .. ' | ' .. mplusCurrent  , 0, 1, 0.75, EXPOS.GetScoreColor(mplusPrevious) )
+        
+        
+        if mplusMainCurrent > 0 or mplusMainPrevious > 0 then
             
-            self:AddLine(" ", 1, 1, 1) 
-            self:AddDoubleLine("S1 | ExpoScore", s1Score .. ' | ' .. epxoScore  , 0, 1, 0.75, EXPOS.GetScoreColor(s1Score) )
+            self:AddDoubleLine("Main: S1 | ExpoScore", "±".. mplusMainPrevious .. ' | ' .. mplusMainCurrent  , 0, 1, 0.75, EXPOS.GetScoreColor(mplusMainPrevious) )
         end
     end
 end
 
 -- lfg tool: admin
 aura_env.UpdateApplicantMember = function(member, appID, memberIdx, status, pendingStatus)
-    local _, _, _, _, _, _, _, _, _, _, _, dungeonScore = C_LFGList.GetApplicantMemberInfo(appID, memberIdx);
+    local fullName, _, _, _, _, _, _, _, _, _, _, seasonScore = C_LFGList.GetApplicantMemberInfo(appID, memberIdx);
     
-    local s1Score = EXPOS.S1correct(dungeonScore)
-    local epxoScore = EXPOS.ExpoCorrect(dungeonScore)
+    local mplusCurrent, mplusPrevious, mplusMainCurrent, mplusMainPrevious = EXPOS.getScore(fullName, seasonScore)
     
-    member.DungeonScore:SetText(EXPOS.GetColorString(s1Score) .. EXPOS.ShortenScore(s1Score) .. ' | '  .. EXPOS.ShortenScore(epxoScore));    
+    member.DungeonScore:SetText(EXPOS.GetColorString(mplusPrevious) .. EXPOS.ShortenScore(mplusPrevious) .. ' | '  .. EXPOS.ShortenScore(mplusCurrent));    
     member.DungeonScore:Show();
     member:SetWidth(256);
 end
@@ -230,12 +313,24 @@ aura_env.SearchEntry_Update = function(group)
     local searchResultInfo = C_LFGList.GetSearchResultInfo(group.resultID)
     local _, _, _, _, _, _, _, _, _, _, _, _, isMythicPlusActivity = C_LFGList.GetActivityInfo(searchResultInfo.activityID, nil, searchResultInfo.isWarMode);
     
+    
     if ( isMythicPlusActivity and searchResultInfo.leaderOverallDungeonScore) then 
-        local s1Score = EXPOS.S1correct(searchResultInfo.leaderOverallDungeonScore)
-        local epxoScore = EXPOS.ExpoCorrect(searchResultInfo.leaderOverallDungeonScore)
+        
+        local mplusCurrent, mplusPrevious, mplusMainCurrent, mplusMainPrevious = EXPOS.getScore(searchResultInfo.leaderName, searchResultInfo.leaderOverallDungeonScore)
+        local colorString = EXPOS.GetColorString(mplusPrevious)
         
         local oldText = group.Name:GetText()
-        local newGrpText = string.format("%s [%s | %s]\124r  %s", EXPOS.GetColorString(s1Score), EXPOS.ShortenScore(s1Score), EXPOS.ShortenScore(epxoScore), oldText);
+        local newGrpText = string.format("%s [±%s | %s]\124r  %s", colorString, EXPOS.ShortenScore(mplusPrevious), EXPOS.ShortenScore(mplusCurrent), oldText);
+        
+        if mplusMainCurrent > 0 or mplusMainPrevious > 0 then
+            
+            if mplusMainPrevious > mplusMainCurrent then
+                colorString = EXPOS.GetColorString(mplusMainPrevious)
+            end
+            
+            newGrpText = string.format("%s [±%s | %s] Main(±%s | %s)\124r  %s", colorString, EXPOS.ShortenScore(mplusPrevious), EXPOS.ShortenScore(mplusCurrent), EXPOS.ShortenScore(mplusMainPrevious), EXPOS.ShortenScore(mplusMainCurrent), oldText);
+        end
+        
         group.Name:SetText(newGrpText)
     end 
 end
