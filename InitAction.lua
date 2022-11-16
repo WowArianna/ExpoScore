@@ -58,11 +58,11 @@ end
 
 EXPOS.GetScoreColor = function(score)
     local colors = {
-        [1] = { ["score"] = 5731, ["color"]= { 1.00, 0.50, 0.00 } }, -- +20
-        [2] = { ["score"] = 3525, ["color"]= { 0.64, 0.21, 0.93 } }, -- +15
-        [3] = { ["score"] = 2168, ["color"]= { 0.00, 0.44, 0.87 } }, -- +10
-        [4] = { ["score"] = 1419, ["color"]= { 0.12, 1.00, 0.00 } }, -- +7
-        [5] = { ["score"] = 1100, ["color"]= { 1.00, 1.00, 1.00 } }, -- +4
+        [1] = { ["score"] = 2400, ["color"]= { 1.00, 0.50, 0.00 } }, -- +20
+        [2] = { ["score"] = 2160, ["color"]= { 0.64, 0.21, 0.93 } }, -- +17
+        [3] = { ["score"] = 2000, ["color"]= { 0.00, 0.44, 0.87 } }, -- +15
+        [4] = { ["score"] = 1760, ["color"]= { 0.12, 1.00, 0.00 } }, -- +12
+        [5] = { ["score"] = 1600, ["color"]= { 1.00, 1.00, 1.00 } }, -- +10
     }
     
     for i = 1, #colors do
@@ -82,7 +82,7 @@ EXPOS.getScore = function(mScore)
     local maxScore = 0;
     
     if mScore and mScore > 0 then
-        mplusCurrent = EXPOS.ExpoCorrect(mScore)
+        mplusCurrent = mScore --EXPOS.ExpoCorrect(mScore)
     end
     
     return mplusCurrent
@@ -101,7 +101,12 @@ EXPOS.chIdToName = function(id)
         [382] = "Theater of Pain",
         [391] = "Tazavesh: Wonder",
         [392] = "Tazavesh: Gambit",
-        
+        [369] = "Mechagon: Junkyard",
+        [370] = "Mechagon: Workshop",
+        [166] = "Grimrail Depot",
+        [169] = "Iron Docks",
+        [234] = "Return to Karazhan: Upper",
+        [227] = "Return to Karazhan: Lower",
     }
     
     if names[id] ~= nil then
@@ -113,9 +118,11 @@ end
 
 -- tooltip
 aura_env.OnTooltipSetUnit = function(self)
-    local _,unit = self:GetUnit()
+    local unitName,unit = self:GetUnit()
     
     if not unit then return end
+    
+    if UnitAffectingCombat("player") then return end
     
     if (UnitIsPlayer(unit)) then    
         local data = C_PlayerInfo.GetPlayerMythicPlusRatingSummary(unit)
@@ -124,6 +131,10 @@ aura_env.OnTooltipSetUnit = function(self)
         local mplusCurrent = EXPOS.getScore(seasonScore)
         self:AddLine("-----------", 1, 1, 1) 
         self:AddDoubleLine("ExpoScore", mplusCurrent, 0, 1, 0.75, EXPOS.GetScoreColor(mplusCurrent))
+        
+        --C_VoiceChat.SpeakText(0, "Wertung für Player" .. unitName, Enum.VoiceTtsDestination.QueuedRemoteTransmissionWithLocalPlayback, 0, 100) 
+        --C_VoiceChat.SpeakText(0, "ist" .. mplusCurren, Enum.VoiceTtsDestination.QueuedRemoteTransmissionWithLocalPlayback, 0, 100)
+        
         local runs = data and data.runs
         if runs then
             for index,run in pairs(runs) do
@@ -143,7 +154,7 @@ aura_env.UpdateApplicantMember = function(member, appID, memberIdx, status, pend
     local _, _, _, _, _, _, _, _, _, _, _, dungeonScore = C_LFGList.GetApplicantMemberInfo(appID, memberIdx);
     
     local mplusCurrent = EXPOS.getScore(dungeonScore);
-    member.Rating:SetText(EXPOS.GetColorString(mplusCurrent) .. EXPOS.ShortenScore(mplusCurrent));  
+    member.Rating:SetText(EXPOS.GetColorString(mplusCurrent) .. mplusCurrent);  
     member.Rating:Show();
     member:SetWidth(256);
 end
@@ -163,6 +174,7 @@ end
 
 
 --- bind hook
-GameTooltip:HookScript('OnTooltipSetUnit', aura_env.OnTooltipSetUnit)
+TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Unit,aura_env.OnTooltipSetUnit)
+--GameTooltip:HookScript('OnTooltipSetUnit', aura_env.OnTooltipSetUnit)
 hooksecurefunc("LFGListApplicationViewer_UpdateApplicantMember", aura_env.UpdateApplicantMember)
 hooksecurefunc("LFGListSearchEntry_Update", aura_env.SearchEntry_Update)
