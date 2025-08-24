@@ -22,13 +22,6 @@ EXPOS.dumpTable = function(tbl,ind)
     return
 end
 
-EXPOS.ExpoCorrect = function(score)
-    if score <= 0 then return score end;
-    local scoreExpo = 3.18*(10^-7)*(score^3)-0.0006889*(score^2)+0.9659*score+447.4
-    score = tonumber(string.format("%." .. 0 .. "f", scoreExpo))
-    return score > 0 and score or 0
-end
-
 EXPOS.ShortenScore = function(score)
     score = math.floor((score + 50) / 100)
     return score / 10.0 .. "k"
@@ -58,11 +51,11 @@ end
 
 EXPOS.GetScoreColor = function(score)
     local colors = {
-        [1] = { ["score"] = 2400, ["color"]= { 1.00, 0.50, 0.00 } }, -- +20
-        [2] = { ["score"] = 2160, ["color"]= { 0.64, 0.21, 0.93 } }, -- +17
-        [3] = { ["score"] = 2000, ["color"]= { 0.00, 0.44, 0.87 } }, -- +15
-        [4] = { ["score"] = 1760, ["color"]= { 0.12, 1.00, 0.00 } }, -- +12
-        [5] = { ["score"] = 1600, ["color"]= { 1.00, 1.00, 1.00 } }, -- +10
+        [1] = { ["score"] = 3000, ["color"]= { 1.00, 0.50, 0.00 } },
+        [2] = { ["score"] = 2800, ["color"]= { 0.64, 0.21, 0.93 } },
+        [3] = { ["score"] = 2000, ["color"]= { 0.00, 0.44, 0.87 } },
+        [4] = { ["score"] = 1760, ["color"]= { 0.12, 1.00, 0.00 } },
+        [5] = { ["score"] = 1600, ["color"]= { 1.00, 1.00, 1.00 } },
     }
     
     for i = 1, #colors do
@@ -90,30 +83,9 @@ end
 
 
 EXPOS.chIdToName = function(id)
-    local names = {
-        [375] = "Mists of Tirna Scithe",
-        [376] = "The Necrotic Wake",
-        [377] = "De Other Side",
-        [378] = "Halls of Atonement",
-        [379] = "Plaguefall",
-        [380] = "Sanguine Depths",
-        [381] = "Spires of Ascension",
-        [382] = "Theater of Pain",
-        [391] = "Tazavesh: Wonder",
-        [392] = "Tazavesh: Gambit",
-        [369] = "Mechagon: Junkyard",
-        [370] = "Mechagon: Workshop",
-        [166] = "Grimrail Depot",
-        [169] = "Iron Docks",
-        [234] = "Return to Karazhan: Upper",
-        [227] = "Return to Karazhan: Lower",
-    }
+    local name = C_ChallengeMode.GetMapUIInfo(id);
     
-    if names[id] ~= nil then
-        return names[id]
-    end
-    
-    return id
+    return name
 end
 
 -- tooltip
@@ -128,12 +100,8 @@ aura_env.OnTooltipSetUnit = function(self)
         local data = C_PlayerInfo.GetPlayerMythicPlusRatingSummary(unit)
         local seasonScore = data and data.currentSeasonScore
         
-        local mplusCurrent = EXPOS.getScore(seasonScore)
-        self:AddLine("-----------", 1, 1, 1) 
-        self:AddDoubleLine("ExpoScore", mplusCurrent, 0, 1, 0.75, EXPOS.GetScoreColor(mplusCurrent))
-        
-        --C_VoiceChat.SpeakText(0, "Wertung für Player" .. unitName, Enum.VoiceTtsDestination.QueuedRemoteTransmissionWithLocalPlayback, 0, 100) 
-        --C_VoiceChat.SpeakText(0, "ist" .. mplusCurren, Enum.VoiceTtsDestination.QueuedRemoteTransmissionWithLocalPlayback, 0, 100)
+        local mplusCurrent = EXPOS.getScore(seasonScore) 
+        self:AddDoubleLine("----- M+ Score ------", mplusCurrent, 1, 1, 1, EXPOS.GetScoreColor(mplusCurrent))
         
         local runs = data and data.runs
         if runs then
@@ -146,7 +114,7 @@ aura_env.OnTooltipSetUnit = function(self)
                 end
             end
         end
-        self:AddLine("-----------", 1, 1, 1) 
+        self:AddLine("------------------------", 1, 1, 1) 
     end
 end
 -- lfg tool: admin
@@ -162,9 +130,9 @@ end
 -- lfg tool: search
 aura_env.SearchEntry_Update = function(group)
     local searchResultInfo = C_LFGList.GetSearchResultInfo(group.resultID)
-    local _, _, _, _, _, _, _, _, _, _, _, _, isMythicPlusActivity = C_LFGList.GetActivityInfo(searchResultInfo.activityID, nil, searchResultInfo.isWarMode);
     
-    if ( isMythicPlusActivity and searchResultInfo.leaderOverallDungeonScore) then 
+    local activityTable = C_LFGList.GetActivityInfoTable(searchResultInfo.activityIDs[1], nil, searchResultInfo.isWarMode);
+    if ( activityTable.isMythicPlusActivity and searchResultInfo.leaderOverallDungeonScore) then 
         local mplusCurrent = EXPOS.getScore(searchResultInfo.leaderOverallDungeonScore)
         local oldText = group.Name:GetText()
         local newGrpText = string.format("%s %s\124r  %s", EXPOS.GetColorString(mplusCurrent), mplusCurrent, oldText);
@@ -172,9 +140,7 @@ aura_env.SearchEntry_Update = function(group)
     end 
 end
 
-
 --- bind hook
-TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Unit,aura_env.OnTooltipSetUnit)
---GameTooltip:HookScript('OnTooltipSetUnit', aura_env.OnTooltipSetUnit)
+TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Unit, aura_env.OnTooltipSetUnit)
 hooksecurefunc("LFGListApplicationViewer_UpdateApplicantMember", aura_env.UpdateApplicantMember)
 hooksecurefunc("LFGListSearchEntry_Update", aura_env.SearchEntry_Update)
